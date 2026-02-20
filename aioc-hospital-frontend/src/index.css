@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+@theme {
+  --color-hospital-blue: #1a4a7a;
+  --color-hospital-blue-dark: #0f2d4f;
+  --color-hospital-blue-light: #2563ab;
+  --color-hospital-teal: #0d7377;
+  --color-hospital-teal-light: #14a085;
+  --color-hospital-green: #1a7a4a;
+  --color-hospital-green-light: #22c55e;
+  --color-hospital-red: #c0392b;
+  --color-hospital-gray: #f0f4f8;
+  --color-hospital-gray-dark: #64748b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}

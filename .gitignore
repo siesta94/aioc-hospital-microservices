@@ -1,0 +1,8 @@
+.env
+aioc-hospital-login-service/.env
+aioc-hospital-frontend/.env
+aioc-hospital-login-service/venv/
+aioc-hospital-frontend/node_modules/
+aioc-hospital-frontend/dist/
+__pycache__/
+*.pyc

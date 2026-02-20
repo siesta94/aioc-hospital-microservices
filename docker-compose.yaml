@@ -1,0 +1,187 @@
+services:
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: aioc-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       ${POSTGRES_DB:-aioc_hospital}
+      POSTGRES_USER:     ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-aioc_hospital}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - aioc-net
+
+  # ── FastAPI Login Service ───────────────────────────────────────────────────
+  login-service:
+    build:
+      context: ./aioc-hospital-login-service
+      dockerfile: Dockerfile
+    container_name: aioc-login-service
+    restart: unless-stopped
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    environment:
+      DATABASE_URL:                postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-aioc_hospital}
+      SECRET_KEY:                  ${SECRET_KEY:-change-this-secret-key-in-production}
+      ALGORITHM:                   HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-480}
+      ALLOWED_ORIGINS:             ${ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      SEED_DEFAULT_USERS:          ${SEED_DEFAULT_USERS:-true}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - aioc-net
+
+  # ── FastAPI Management Service ──────────────────────────────────────────────
+  management-service:
+    build:
+      context: ./aioc-hospital-management-service
+      dockerfile: Dockerfile
+    container_name: aioc-management-service
+    restart: unless-stopped
+    ports:
+      - "${MANAGEMENT_PORT:-8001}:8001"
+    environment:
+      DATABASE_URL:    postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-aioc_hospital}
+      SECRET_KEY:      ${SECRET_KEY:-change-this-secret-key-in-production}
+      ALGORITHM:       HS256
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+    depends_on:
+      login-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8001/health')\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - aioc-net
+
+  # ── FastAPI Scheduling Service ─────────────────────────────────────────────
+  scheduling-service:
+    build:
+      context: ./aioc-hospital-scheduling-service
+      dockerfile: Dockerfile
+    container_name: aioc-scheduling-service
+    restart: unless-stopped
+    ports:
+      - "${SCHEDULING_PORT:-8002}:8002"
+    environment:
+      DATABASE_URL:    postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-aioc_hospital}
+      SECRET_KEY:      ${SECRET_KEY:-change-this-secret-key-in-production}
+      ALGORITHM:       HS256
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+    depends_on:
+      management-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8002/health')\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 25s
+    networks:
+      - aioc-net
+
+  # ── FastAPI PDF Service ──────────────────────────────────────────────────────
+  pdf-service:
+    build:
+      context: ./aioc-hospital-pdf-service
+      dockerfile: Dockerfile
+    container_name: aioc-pdf-service
+    restart: unless-stopped
+    ports:
+      - "${PDF_PORT:-8004}:8004"
+    environment:
+      HOSPITAL_NAME:    ${HOSPITAL_NAME:-AIOC Hospital}
+      HOSPITAL_ADDRESS: ${HOSPITAL_ADDRESS:-}
+      HOSPITAL_PHONE:   ${HOSPITAL_PHONE:-}
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8004/health')\""]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - aioc-net
+
+  # ── FastAPI Reports Service ──────────────────────────────────────────────────
+  reports-service:
+    build:
+      context: ./aioc-hospital-reports-service
+      dockerfile: Dockerfile
+    container_name: aioc-reports-service
+    restart: unless-stopped
+    ports:
+      - "${REPORTS_PORT:-8003}:8003"
+    environment:
+      DATABASE_URL:    postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-aioc_hospital}
+      SECRET_KEY:      ${SECRET_KEY:-change-this-secret-key-in-production}
+      ALGORITHM:       HS256
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      PDF_SERVICE_URL: http://pdf-service:8004
+    depends_on:
+      management-service:
+        condition: service_healthy
+      pdf-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8003/health')\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - aioc-net
+
+  # ── React Frontend (serve) ──────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./aioc-hospital-frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL:             ${VITE_API_URL:-http://localhost:8000}
+        VITE_MANAGEMENT_API_URL:  ${VITE_MANAGEMENT_API_URL:-http://localhost:8001}
+        VITE_SCHEDULING_API_URL:  ${VITE_SCHEDULING_API_URL:-http://localhost:8002}
+        VITE_REPORTS_API_URL:     ${VITE_REPORTS_API_URL:-http://localhost:8003}
+    container_name: aioc-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      login-service:
+        condition: service_healthy
+      management-service:
+        condition: service_healthy
+      scheduling-service:
+        condition: service_healthy
+      reports-service:
+        condition: service_healthy
+    networks:
+      - aioc-net
+
+volumes:
+  postgres_data:
+    name: aioc-hospital-postgres-data
+
+networks:
+  aioc-net:
+    name: aioc-hospital-network
+    driver: bridge
