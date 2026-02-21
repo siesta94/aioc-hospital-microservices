@@ -1,3 +1,4 @@
+// AIOC Hospital Frontend
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { LoginPage } from './pages/LoginPage';
 import { UserDashboard } from './pages/UserDashboard';
