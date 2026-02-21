@@ -4,6 +4,7 @@ import { Users, Settings, ScrollText, ShieldCheck, Activity, Server, AlertTriang
 import { Sidebar } from '../components/Sidebar';
 import { UserManagementPage } from './UserManagementPage';
 import { DoctorsPage } from './DoctorsPage';
+import { AdminPatientsPage } from './AdminPatientsPage';
 import { authService, type UserInfo } from '../services/auth';
 
 function StatCard({
@@ -225,6 +226,7 @@ export function AdminDashboard() {
         <Routes>
           <Route index element={<AdminHome user={user} />} />
           <Route path="users" element={<UserManagementPage />} />
+          <Route path="patients" element={<AdminPatientsPage />} />
           <Route path="doctors" element={<DoctorsPage />} />
           <Route path="settings" element={<PlaceholderPage title="System Settings" icon={<Settings size={64} />} />} />
           <Route path="logs" element={<PlaceholderPage title="Audit Logs" icon={<ScrollText size={64} />} />} />

@@ -406,11 +406,17 @@ export function CalendarPage() {
               return (
                 <button
                   key={key}
+                  type="button"
                   onClick={() => setSelected(key)}
+                  onDoubleClick={() => {
+                    setSelected(key);
+                    setShowCreateModal(true);
+                  }}
                   className={`h-20 p-2 border-b border-r border-gray-100 text-left transition-colors relative
                     ${isSelected ? 'bg-blue-50 ring-2 ring-inset ring-blue-300' : 'hover:bg-gray-50'}
                     ${isWeekend && !isSelected ? 'bg-slate-50/60' : ''}
                   `}
+                  title="Single click: select day. Double-click: add appointment."
                 >
                   <span
                     className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-sm font-medium
@@ -437,14 +443,17 @@ export function CalendarPage() {
             })}
           </div>
 
-          {/* Legend */}
-          <div className="flex items-center gap-5 px-5 py-3 border-t border-gray-100 bg-gray-50/50 flex-wrap">
-            {(Object.keys(STATUS_DOT) as CalendarStatus[]).map(s => (
-              <span key={s} className="flex items-center gap-1.5 text-xs text-gray-500 capitalize">
-                <span className={`w-2 h-2 rounded-full ${STATUS_DOT[s]}`} />
-                {s.replace('_', '-')}
-              </span>
-            ))}
+          {/* Legend + hint */}
+          <div className="px-5 py-3 border-t border-gray-100 bg-gray-50/50 space-y-2">
+            <div className="flex items-center gap-5 flex-wrap">
+              {(Object.keys(STATUS_DOT) as CalendarStatus[]).map(s => (
+                <span key={s} className="flex items-center gap-1.5 text-xs text-gray-500 capitalize">
+                  <span className={`w-2 h-2 rounded-full ${STATUS_DOT[s]}`} />
+                  {s.replace('_', '-')}
+                </span>
+              ))}
+            </div>
+            <p className="text-xs text-gray-400">Double-click a day to add a new appointment</p>
           </div>
         </div>
 

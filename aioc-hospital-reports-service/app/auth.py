@@ -1,14 +1,22 @@
+"""JWT-only auth: no users table in this service. Token must include id, sub, role (from login service)."""
 import jwt
 from jwt.exceptions import InvalidTokenError
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
+from pydantic import BaseModel
 
 from app.config import settings
-from app.database import get_db
-from app.models import User
 
 bearer_scheme = HTTPBearer()
+
+
+class CurrentUser(BaseModel):
+    id: int
+    username: str
+    role: str
+
+    class Config:
+        frozen = True
 
 
 def decode_token(token: str) -> dict:
@@ -24,13 +32,11 @@ def decode_token(token: str) -> dict:
 
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
-    db: Session = Depends(get_db),
-) -> User:
+) -> CurrentUser:
     payload = decode_token(credentials.credentials)
     username: str = payload.get("sub")
-    if not username:
+    user_id = payload.get("id")
+    role = payload.get("role")
+    if not username or user_id is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-    user = db.query(User).filter(User.username == username, User.is_active == True).first()
-    if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
-    return user
+    return CurrentUser(id=int(user_id), username=username, role=role or "user")

@@ -65,6 +65,12 @@ export function ExamReportPage() {
             setAppointment(null);
             return;
           }
+          if (!p.is_active) {
+            setError('Cannot start an exam for an inactive patient.');
+            setPatient(p);
+            setAppointment(a);
+            return;
+          }
           if (a.status !== 'scheduled') {
             setError('This appointment is not scheduled for an exam.');
             setPatient(p);

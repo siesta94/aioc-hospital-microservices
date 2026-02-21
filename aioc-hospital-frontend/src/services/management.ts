@@ -1,8 +1,10 @@
 import axios from 'axios';
 import { authService } from './auth';
 
-/** Base URL for the management service (patients, users). Used by the browser to load patient list etc. */
+/** Base URL for the management service (patients only). */
 export const MANAGEMENT_API_BASE = (import.meta.env.VITE_MANAGEMENT_API_URL as string | undefined) ?? '';
+/** Base URL for the login service (auth + user management). */
+const LOGIN_API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
 const BASE = MANAGEMENT_API_BASE;
 
 export type Gender = 'male' | 'female' | 'other';
@@ -86,12 +88,14 @@ export interface UserUpdate {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function userHeaders() {
-  return { Authorization: `Bearer ${authService.getUserToken()}` };
-}
-
 function adminHeaders() {
   return { Authorization: `Bearer ${authService.getAdminToken()}` };
+}
+
+/** Admin or user token so both staff and admin dashboards can call patient API. */
+function patientAuthHeaders() {
+  const token = authService.getAdminToken() ?? authService.getUserToken();
+  return { Authorization: `Bearer ${token}` };
 }
 
 // ── Patient API ──────────────────────────────────────────────────────────────
@@ -100,44 +104,44 @@ export const patientApi = {
   async list(params?: { search?: string; is_active?: boolean; skip?: number; limit?: number }): Promise<PatientListResponse> {
     const { data } = await axios.get(`${BASE}/api/patients`, {
       params,
-      headers: userHeaders(),
+      headers: patientAuthHeaders(),
     });
     return data;
   },
 
   async create(body: PatientCreate): Promise<Patient> {
     const { data } = await axios.post(`${BASE}/api/patients`, body, {
-      headers: userHeaders(),
+      headers: patientAuthHeaders(),
     });
     return data;
   },
 
   async get(id: number): Promise<Patient> {
     const { data } = await axios.get(`${BASE}/api/patients/${id}`, {
-      headers: userHeaders(),
+      headers: patientAuthHeaders(),
     });
     return data;
   },
 
   async update(id: number, body: PatientUpdate): Promise<Patient> {
     const { data } = await axios.put(`${BASE}/api/patients/${id}`, body, {
-      headers: userHeaders(),
+      headers: patientAuthHeaders(),
     });
     return data;
   },
 
   async deactivate(id: number): Promise<void> {
     await axios.delete(`${BASE}/api/patients/${id}`, {
-      headers: userHeaders(),
+      headers: patientAuthHeaders(),
     });
   },
 };
 
-// ── User management API (admin only) ─────────────────────────────────────────
+// ── User management API (admin only; login service) ──────────────────────────
 
 export const userManagementApi = {
   async list(params?: { search?: string; skip?: number; limit?: number }): Promise<UserListResponse> {
-    const { data } = await axios.get(`${BASE}/api/users`, {
+    const { data } = await axios.get(`${LOGIN_API_BASE}/api/users`, {
       params,
       headers: adminHeaders(),
     });
@@ -145,21 +149,28 @@ export const userManagementApi = {
   },
 
   async create(body: UserCreate): Promise<ManagedUser> {
-    const { data } = await axios.post(`${BASE}/api/users`, body, {
+    const { data } = await axios.post(`${LOGIN_API_BASE}/api/users`, body, {
       headers: adminHeaders(),
     });
     return data;
   },
 
   async update(id: number, body: UserUpdate): Promise<ManagedUser> {
-    const { data } = await axios.put(`${BASE}/api/users/${id}`, body, {
+    const { data } = await axios.put(`${LOGIN_API_BASE}/api/users/${id}`, body, {
       headers: adminHeaders(),
     });
     return data;
   },
 
   async deactivate(id: number): Promise<void> {
-    await axios.delete(`${BASE}/api/users/${id}`, {
+    await axios.delete(`${LOGIN_API_BASE}/api/users/${id}`, {
+      headers: adminHeaders(),
+    });
+  },
+
+  /** Permanently remove user from the database. Cannot delete yourself. */
+  async deletePermanent(id: number): Promise<void> {
+    await axios.delete(`${LOGIN_API_BASE}/api/users/${id}/permanent`, {
       headers: adminHeaders(),
     });
   },

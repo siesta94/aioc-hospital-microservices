@@ -42,7 +42,7 @@ def upgrade() -> None:
             is_active             BOOLEAN NOT NULL DEFAULT TRUE,
             created_at            TIMESTAMP NOT NULL DEFAULT NOW(),
             updated_at            TIMESTAMP NOT NULL DEFAULT NOW(),
-            created_by_id         INTEGER REFERENCES users(id)
+            created_by_id         INTEGER
         )
     """))
     conn.execute(sa.text(

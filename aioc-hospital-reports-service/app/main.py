@@ -20,7 +20,7 @@ def ensure_reports_schema():
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS reports (
                 id                 SERIAL PRIMARY KEY,
-                patient_id         INTEGER NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+                patient_id         INTEGER NOT NULL,
                 diagnosis_code     VARCHAR,
                 content            TEXT NOT NULL,
                 therapy            TEXT,
@@ -28,7 +28,7 @@ def ensure_reports_schema():
                 referral_specialty VARCHAR,
                 created_at         TIMESTAMP NOT NULL DEFAULT NOW(),
                 updated_at         TIMESTAMP NOT NULL DEFAULT NOW(),
-                created_by_id      INTEGER REFERENCES users(id)
+                created_by_id      INTEGER
             )
         """))
         conn.execute(text("""
@@ -79,8 +79,9 @@ app.include_router(reports.router)
 @app.get("/health")
 def health(db: Session = Depends(get_db)):
     try:
-        db.execute(text("SELECT 1"))
-        return {"status": "ok"}
+        r = db.execute(text("SELECT current_database()"))
+        db_name = r.scalar()
+        return {"status": "ok", "database": db_name}
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

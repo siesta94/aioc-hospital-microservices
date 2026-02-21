@@ -2,9 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Patient, User
+from app.models import Patient
 from app.schemas import PatientCreate, PatientUpdate, PatientResponse, PatientListResponse
-from app.auth import get_current_user
+from app.auth import get_current_user, CurrentUser
 
 router = APIRouter(prefix="/api/patients", tags=["patients"])
 
@@ -16,7 +16,7 @@ def list_patients(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=500),
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: CurrentUser = Depends(get_current_user),
 ):
     q = db.query(Patient)
     if is_active is not None:
@@ -37,7 +37,7 @@ def list_patients(
 def create_patient(
     body: PatientCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
 ):
     if db.query(Patient).filter(Patient.medical_record_number == body.medical_record_number).first():
         raise HTTPException(
@@ -55,7 +55,7 @@ def create_patient(
 def get_patient(
     patient_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: CurrentUser = Depends(get_current_user),
 ):
     patient = db.query(Patient).filter(Patient.id == patient_id).first()
     if not patient:
@@ -68,7 +68,7 @@ def update_patient(
     patient_id: int,
     body: PatientUpdate,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: CurrentUser = Depends(get_current_user),
 ):
     patient = db.query(Patient).filter(Patient.id == patient_id).first()
     if not patient:
@@ -84,7 +84,7 @@ def update_patient(
 def delete_patient(
     patient_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: CurrentUser = Depends(get_current_user),
 ):
     patient = db.query(Patient).filter(Patient.id == patient_id).first()
     if not patient:

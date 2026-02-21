@@ -93,14 +93,24 @@ export function ExamsPage() {
                     })}
                   </p>
                 </div>
-                <Link
-                  to={`/dashboard/patients/${a.patient_id}/exam/${a.id}`}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white hover:opacity-90 transition-opacity"
-                  style={{ background: 'linear-gradient(135deg, #1a4a7a, #0d7377)' }}
-                >
-                  <Stethoscope size={18} />
-                  Start exam
-                </Link>
+                {a.patient_is_active !== false ? (
+                  <Link
+                    to={`/dashboard/patients/${a.patient_id}/exam/${a.id}`}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white hover:opacity-90 transition-opacity"
+                    style={{ background: 'linear-gradient(135deg, #1a4a7a, #0d7377)' }}
+                  >
+                    <Stethoscope size={18} />
+                    Start exam
+                  </Link>
+                ) : (
+                  <span
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-gray-400 bg-gray-100 cursor-not-allowed"
+                    title="Patient is inactive"
+                  >
+                    <Stethoscope size={18} />
+                    Start exam (inactive)
+                  </span>
+                )}
               </li>
             ))}
           </ul>

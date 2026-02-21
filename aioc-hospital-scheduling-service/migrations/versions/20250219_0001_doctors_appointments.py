@@ -27,18 +27,17 @@ def upgrade() -> None:
     conn.execute(sa.text("""
         CREATE TABLE IF NOT EXISTS doctors (
             id           SERIAL PRIMARY KEY,
-            user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            user_id      INTEGER NOT NULL UNIQUE,
             display_name VARCHAR NOT NULL,
             specialty    VARCHAR,
             is_active    BOOLEAN NOT NULL DEFAULT TRUE,
-            created_at   TIMESTAMP NOT NULL DEFAULT NOW(),
-            UNIQUE(user_id)
+            created_at   TIMESTAMP NOT NULL DEFAULT NOW()
         )
     """))
     conn.execute(sa.text("""
         CREATE TABLE IF NOT EXISTS appointments (
             id                SERIAL PRIMARY KEY,
-            patient_id        INTEGER NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+            patient_id        INTEGER NOT NULL,
             doctor_id         INTEGER NOT NULL REFERENCES doctors(id) ON DELETE CASCADE,
             scheduled_at      TIMESTAMP NOT NULL,
             duration_minutes  INTEGER NOT NULL DEFAULT 30,
@@ -46,7 +45,7 @@ def upgrade() -> None:
             notes             TEXT,
             created_at        TIMESTAMP NOT NULL DEFAULT NOW(),
             updated_at        TIMESTAMP NOT NULL DEFAULT NOW(),
-            created_by_id     INTEGER REFERENCES users(id)
+            created_by_id     INTEGER
         )
     """))
     conn.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_doctors_id ON doctors (id)"))

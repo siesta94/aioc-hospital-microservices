@@ -1,11 +1,11 @@
-import bcrypt
+"""User CRUD for admin. Login service owns the users table."""
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import User, UserRole
 from app.schemas import UserCreate, UserUpdate, UserResponse, UserListResponse
-from app.auth import require_role
+from app.auth import require_role, get_current_user, hash_password
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -40,12 +40,12 @@ def create_user(
             status_code=status.HTTP_409_CONFLICT,
             detail="Username already taken",
         )
-    hashed = bcrypt.hashpw(body.password.encode(), bcrypt.gensalt()).decode()
+    hashed = hash_password(body.password)
     user = User(
         username=body.username,
         hashed_password=hashed,
         role=body.role,
-        full_name=body.full_name,
+        full_name=body.full_name or None,
         is_active=True,
     )
     db.add(user)
@@ -103,4 +103,23 @@ def deactivate_user(
             detail="You cannot deactivate your own account",
         )
     user.is_active = False
+    db.commit()
+
+
+@router.delete("/{user_id}/permanent", status_code=status.HTTP_204_NO_CONTENT)
+def delete_user_permanent(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(_admin_only),
+):
+    """Permanently remove the user from the database. Cannot delete yourself."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if user.id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You cannot delete your own account",
+        )
+    db.delete(user)
     db.commit()

@@ -29,7 +29,7 @@ def _authenticate(username: str, password: str, role: UserRole, db: Session) -> 
 @router.post("/login", response_model=TokenResponse)
 def user_login(body: LoginRequest, db: Session = Depends(get_db)):
     user = _authenticate(body.username, body.password, UserRole.user, db)
-    token = create_access_token({"sub": user.username, "role": user.role})
+    token = create_access_token({"sub": user.username, "role": user.role, "id": user.id})
     return TokenResponse(
         access_token=token,
         role=user.role,
@@ -41,7 +41,7 @@ def user_login(body: LoginRequest, db: Session = Depends(get_db)):
 @router.post("/admin/login", response_model=TokenResponse)
 def admin_login(body: LoginRequest, db: Session = Depends(get_db)):
     user = _authenticate(body.username, body.password, UserRole.admin, db)
-    token = create_access_token({"sub": user.username, "role": user.role})
+    token = create_access_token({"sub": user.username, "role": user.role, "id": user.id})
     return TokenResponse(
         access_token=token,
         role=user.role,

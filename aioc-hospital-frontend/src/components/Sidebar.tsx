@@ -13,6 +13,7 @@ import {
   Cross,
   Stethoscope,
   ClipboardList,
+  UserRound,
 } from 'lucide-react';
 import { authService, type UserRole } from '../services/auth';
 
@@ -33,6 +34,7 @@ const USER_NAV: NavItem[] = [
 const ADMIN_NAV: NavItem[] = [
   { label: 'Dashboard', path: '/admin/dashboard', icon: <LayoutDashboard size={20} /> },
   { label: 'User Management', path: '/admin/dashboard/users', icon: <Users size={20} /> },
+  { label: 'Patients', path: '/admin/dashboard/patients', icon: <UserRound size={20} /> },
   { label: 'Doctors', path: '/admin/dashboard/doctors', icon: <Stethoscope size={20} /> },
   { label: 'System Settings', path: '/admin/dashboard/settings', icon: <Settings size={20} /> },
   { label: 'Audit Logs', path: '/admin/dashboard/logs', icon: <ScrollText size={20} /> },

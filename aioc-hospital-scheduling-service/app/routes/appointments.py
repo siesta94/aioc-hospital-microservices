@@ -1,15 +1,17 @@
 from datetime import datetime, date, timedelta
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session, joinedload
 
+from app.config import settings
 from app.database import get_db
-from app.models import Appointment, AppointmentStatus, User
+from app.models import Appointment, AppointmentStatus
 from app.schemas import (
     AppointmentCreate, AppointmentUpdate, AppointmentResponse, AppointmentListResponse,
     AppointmentWithDetailsResponse, AppointmentCalendarResponse,
 )
-from app.auth import get_current_user
+from app.auth import get_current_user, CurrentUser
 
 router = APIRouter(prefix="/api/appointments", tags=["appointments"])
 
@@ -42,6 +44,24 @@ def cancel_overdue_scheduled_appointments(db: Session) -> None:
         db.commit()
 
 
+def _fetch_patient_data(patient_ids: list[int]) -> dict[int, dict]:
+    """Call management service internal batch; return dict patient_id -> {name, is_active}."""
+    if not patient_ids:
+        return {}
+    url = f"{settings.MANAGEMENT_SERVICE_URL.rstrip('/')}/internal/patients/batch"
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            r = client.post(url, json={"ids": list(set(patient_ids))})
+            r.raise_for_status()
+            data = r.json()
+    except httpx.HTTPError:
+        return {}
+    return {
+        p["id"]: {"name": f"{p['first_name']} {p['last_name']}", "is_active": p.get("is_active", True)}
+        for p in data
+    }
+
+
 @router.get("", response_model=AppointmentListResponse)
 def list_appointments(
     patient_id: int | None = Query(default=None),
@@ -52,7 +72,7 @@ def list_appointments(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=200),
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: CurrentUser = Depends(get_current_user),
 ):
     cancel_overdue_scheduled_appointments(db)
     q = db.query(Appointment)
@@ -78,20 +98,23 @@ def list_appointments(
 def list_appointments_recent(
     limit: int = Query(default=20, ge=1, le=50),
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: CurrentUser = Depends(get_current_user),
 ):
     """Recent appointments with details for dashboard activity (ordered by updated_at desc)."""
     q = (
         db.query(Appointment)
-        .options(joinedload(Appointment.doctor), joinedload(Appointment.patient))
+        .options(joinedload(Appointment.doctor))
         .order_by(Appointment.updated_at.desc())
     )
     items = q.limit(limit).all()
+    patient_ids = [a.patient_id for a in items]
+    patient_data = _fetch_patient_data(patient_ids)
     out = [
         AppointmentWithDetailsResponse(
             **AppointmentResponse.model_validate(a).model_dump(),
             doctor_display_name=a.doctor.display_name if a.doctor else None,
-            patient_name=f"{a.patient.first_name} {a.patient.last_name}" if a.patient else None,
+            patient_name=patient_data.get(a.patient_id, {}).get("name"),
+            patient_is_active=patient_data.get(a.patient_id, {}).get("is_active"),
         )
         for a in items
     ]
@@ -105,12 +128,12 @@ def list_appointments_calendar(
     doctor_id: int | None = Query(default=None),
     patient_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: CurrentUser = Depends(get_current_user),
 ):
     cancel_overdue_scheduled_appointments(db)
     q = (
         db.query(Appointment)
-        .options(joinedload(Appointment.doctor), joinedload(Appointment.patient))
+        .options(joinedload(Appointment.doctor))
         .filter(Appointment.scheduled_at >= from_date, Appointment.scheduled_at <= to_date)
     )
     if doctor_id is not None:
@@ -118,11 +141,14 @@ def list_appointments_calendar(
     if patient_id is not None:
         q = q.filter(Appointment.patient_id == patient_id)
     items = q.order_by(Appointment.scheduled_at).all()
+    patient_ids = [a.patient_id for a in items]
+    patient_data = _fetch_patient_data(patient_ids)
     out = [
         AppointmentWithDetailsResponse(
             **AppointmentResponse.model_validate(a).model_dump(),
             doctor_display_name=a.doctor.display_name if a.doctor else None,
-            patient_name=f"{a.patient.first_name} {a.patient.last_name}" if a.patient else None,
+            patient_name=patient_data.get(a.patient_id, {}).get("name"),
+            patient_is_active=patient_data.get(a.patient_id, {}).get("is_active"),
         )
         for a in items
     ]
@@ -133,7 +159,7 @@ def list_appointments_calendar(
 def create_appointment(
     body: AppointmentCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
 ):
     _reject_past_scheduled_at(body.scheduled_at)
     appointment = Appointment(**body.model_dump(), created_by_id=current_user.id)
@@ -147,7 +173,7 @@ def create_appointment(
 def get_appointment(
     appointment_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: CurrentUser = Depends(get_current_user),
 ):
     cancel_overdue_scheduled_appointments(db)
     appointment = db.query(Appointment).filter(Appointment.id == appointment_id).first()
@@ -161,7 +187,7 @@ def update_appointment(
     appointment_id: int,
     body: AppointmentUpdate,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: CurrentUser = Depends(get_current_user),
 ):
     appointment = db.query(Appointment).filter(Appointment.id == appointment_id).first()
     if not appointment:
@@ -180,7 +206,7 @@ def update_appointment(
 def cancel_appointment(
     appointment_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: CurrentUser = Depends(get_current_user),
 ):
     appointment = db.query(Appointment).filter(Appointment.id == appointment_id).first()
     if not appointment:

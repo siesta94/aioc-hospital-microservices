@@ -72,6 +72,7 @@ class AppointmentResponse(BaseModel):
 class AppointmentWithDetailsResponse(AppointmentResponse):
     doctor_display_name: str | None = None
     patient_name: str | None = None
+    patient_is_active: bool | None = None
 
 
 class AppointmentListResponse(BaseModel):

@@ -47,6 +47,7 @@ export interface Appointment {
 export interface AppointmentWithDetails extends Appointment {
   doctor_display_name: string | null;
   patient_name: string | null;
+  patient_is_active?: boolean | null;
 }
 
 export interface AppointmentCreate {

@@ -8,7 +8,7 @@ from sqlalchemy import text
 
 from app.config import settings
 from app.database import engine, get_db
-from app.routes import patients, users, internal
+from app.routes import patients, internal
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -38,7 +38,7 @@ def ensure_patients_schema():
                 is_active             BOOLEAN NOT NULL DEFAULT TRUE,
                 created_at            TIMESTAMP NOT NULL DEFAULT NOW(),
                 updated_at            TIMESTAMP NOT NULL DEFAULT NOW(),
-                created_by_id         INTEGER REFERENCES users(id)
+                created_by_id         INTEGER
             )
         """))
         conn.execute(text(
@@ -72,15 +72,15 @@ app.add_middleware(
 )
 
 app.include_router(patients.router)
-app.include_router(users.router)
 app.include_router(internal.router)
 
 
 @app.get("/health")
 def health(db: Session = Depends(get_db)):
     try:
-        db.execute(text("SELECT 1"))
-        return {"status": "ok"}
+        r = db.execute(text("SELECT current_database()"))
+        db_name = r.scalar()
+        return {"status": "ok", "database": db_name}
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

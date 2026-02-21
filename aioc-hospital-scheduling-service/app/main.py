@@ -26,13 +26,12 @@ def ensure_scheduling_schema():
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS doctors (
                 id             SERIAL PRIMARY KEY,
-                user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                user_id        INTEGER NOT NULL UNIQUE,
                 display_name   VARCHAR NOT NULL,
                 specialty      VARCHAR NOT NULL,
                 sub_specialty  VARCHAR,
                 is_active      BOOLEAN NOT NULL DEFAULT TRUE,
-                created_at     TIMESTAMP NOT NULL DEFAULT NOW(),
-                UNIQUE(user_id)
+                created_at     TIMESTAMP NOT NULL DEFAULT NOW()
             )
         """))
         conn.execute(text("""
@@ -46,7 +45,7 @@ def ensure_scheduling_schema():
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS appointments (
                 id                SERIAL PRIMARY KEY,
-                patient_id        INTEGER NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+                patient_id        INTEGER NOT NULL,
                 doctor_id         INTEGER NOT NULL REFERENCES doctors(id) ON DELETE CASCADE,
                 scheduled_at      TIMESTAMP NOT NULL,
                 duration_minutes  INTEGER NOT NULL DEFAULT 30,
@@ -54,7 +53,7 @@ def ensure_scheduling_schema():
                 notes             TEXT,
                 created_at        TIMESTAMP NOT NULL DEFAULT NOW(),
                 updated_at        TIMESTAMP NOT NULL DEFAULT NOW(),
-                created_by_id     INTEGER REFERENCES users(id)
+                created_by_id     INTEGER
             )
         """))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_doctors_id ON doctors (id)"))
@@ -93,8 +92,9 @@ app.include_router(appointments.router)
 @app.get("/health")
 def health(db: Session = Depends(get_db)):
     try:
-        db.execute(text("SELECT 1"))
-        return {"status": "ok"}
+        r = db.execute(text("SELECT current_database()"))
+        db_name = r.scalar()
+        return {"status": "ok", "database": db_name}
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

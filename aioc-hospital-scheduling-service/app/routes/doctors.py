@@ -2,12 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Doctor, User, UserRole
+from app.models import Doctor
 from app.schemas import DoctorCreate, DoctorUpdate, DoctorResponse, DoctorListResponse
-from app.auth import get_current_user, require_role
+from app.auth import get_current_user, require_role, CurrentUser
 
 router = APIRouter(prefix="/api/doctors", tags=["doctors"])
-_admin = require_role(UserRole.admin)
+_admin = require_role("admin")
 
 
 @router.get("", response_model=DoctorListResponse)
@@ -16,7 +16,7 @@ def list_doctors(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=100, ge=1, le=200),
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: CurrentUser = Depends(get_current_user),
 ):
     q = db.query(Doctor)
     if is_active is not None:
@@ -29,7 +29,7 @@ def list_doctors(
 @router.get("/me", response_model=DoctorResponse)
 def get_my_doctor_profile(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
 ):
     """Return the doctor profile for the current user (staff dashboard: my exams)."""
     doctor = db.query(Doctor).filter(Doctor.user_id == current_user.id, Doctor.is_active == True).first()
@@ -42,7 +42,7 @@ def get_my_doctor_profile(
 def create_doctor(
     body: DoctorCreate,
     db: Session = Depends(get_db),
-    _: User = Depends(_admin),
+    _: CurrentUser = Depends(_admin),
 ):
     if db.query(Doctor).filter(Doctor.user_id == body.user_id).first():
         raise HTTPException(
@@ -60,7 +60,7 @@ def create_doctor(
 def get_doctor(
     doctor_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: CurrentUser = Depends(get_current_user),
 ):
     doctor = db.query(Doctor).filter(Doctor.id == doctor_id).first()
     if not doctor:
@@ -73,7 +73,7 @@ def update_doctor(
     doctor_id: int,
     body: DoctorUpdate,
     db: Session = Depends(get_db),
-    _: User = Depends(_admin),
+    _: CurrentUser = Depends(_admin),
 ):
     doctor = db.query(Doctor).filter(Doctor.id == doctor_id).first()
     if not doctor:
@@ -89,7 +89,7 @@ def update_doctor(
 def delete_doctor(
     doctor_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(_admin),
+    _: CurrentUser = Depends(_admin),
 ):
     doctor = db.query(Doctor).filter(Doctor.id == doctor_id).first()
     if not doctor:

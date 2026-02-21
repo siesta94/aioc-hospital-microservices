@@ -1,15 +1,35 @@
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import Response
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
-from app.models import Report, User
+from app.models import Report
 from app.schemas import ReportCreate, ReportUpdate, ReportResponse, ReportListResponse
-from app.auth import get_current_user
+from app.auth import get_current_user, CurrentUser
 
 router = APIRouter(prefix="/api/patients", tags=["reports"])
+
+
+def _fetch_patient(patient_id: int) -> dict | None:
+    """Fetch patient from management service internal API. Returns None on error or 404."""
+    url = f"{settings.MANAGEMENT_SERVICE_URL.rstrip('/')}/internal/patients/{patient_id}"
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            r = client.get(url)
+            r.raise_for_status()
+            return r.json()
+    except httpx.HTTPError:
+        return None
+
+
+def _fetch_patient_name(patient_id: int) -> str:
+    """Resolve patient_id to display name via management service."""
+    data = _fetch_patient(patient_id)
+    if data:
+        return f"{data['first_name']} {data['last_name']}"
+    return f"Patient {patient_id}"
 
 
 @router.get("/{patient_id}/reports", response_model=ReportListResponse)
@@ -18,7 +38,7 @@ def list_reports(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=50, ge=1, le=100),
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: CurrentUser = Depends(get_current_user),
 ):
     q = db.query(Report).filter(Report.patient_id == patient_id)
     total = q.count()
@@ -31,8 +51,16 @@ def create_report(
     patient_id: int,
     body: ReportCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
 ):
+    patient = _fetch_patient(patient_id)
+    if not patient:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found")
+    if not patient.get("is_active", True):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot create a report for an inactive patient.",
+        )
     report = Report(
         patient_id=patient_id,
         diagnosis_code=body.diagnosis_code or None,
@@ -53,7 +81,7 @@ def get_report(
     patient_id: int,
     report_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: CurrentUser = Depends(get_current_user),
 ):
     report = db.query(Report).filter(Report.id == report_id, Report.patient_id == patient_id).first()
     if not report:
@@ -67,7 +95,7 @@ def update_report(
     report_id: int,
     body: ReportUpdate,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: CurrentUser = Depends(get_current_user),
 ):
     report = db.query(Report).filter(Report.id == report_id, Report.patient_id == patient_id).first()
     if not report:
@@ -84,7 +112,7 @@ def delete_report(
     patient_id: int,
     report_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: CurrentUser = Depends(get_current_user),
 ):
     report = db.query(Report).filter(Report.id == report_id, Report.patient_id == patient_id).first()
     if not report:
@@ -98,21 +126,14 @@ def get_report_pdf(
     patient_id: int,
     report_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: CurrentUser = Depends(get_current_user),
 ):
-    report = (
-        db.query(Report)
-        .options(joinedload(Report.patient))
-        .filter(Report.id == report_id, Report.patient_id == patient_id)
-        .first()
-    )
+    report = db.query(Report).filter(
+        Report.id == report_id, Report.patient_id == patient_id
+    ).first()
     if not report:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
-    patient_name = (
-        f"{report.patient.first_name} {report.patient.last_name}"
-        if report.patient
-        else f"Patient {report.patient_id}"
-    )
+    patient_name = _fetch_patient_name(patient_id)
     payload = {
         "patient_name": patient_name,
         "report": {

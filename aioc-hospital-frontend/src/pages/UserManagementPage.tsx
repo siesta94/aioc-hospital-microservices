@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
   Search, Plus, X, ChevronDown, ShieldCheck,
-  UserRound, Loader2, AlertCircle, ToggleLeft, ToggleRight,
+  UserRound, Loader2, AlertCircle, ToggleLeft, ToggleRight, Trash2,
 } from 'lucide-react';
 import { userManagementApi, type ManagedUser, type UserCreate, type UserRole } from '../services/management';
 
@@ -151,6 +151,8 @@ export function UserManagementPage() {
   const [loading, setLoading]       = useState(true);
   const [showModal, setShowModal]   = useState(false);
   const [actionId, setActionId]     = useState<number | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<ManagedUser | null>(null);
+  const [deleteError, setDeleteError] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -174,6 +176,22 @@ export function UserManagementPage() {
       await load();
     } catch {
       // ignore
+    } finally {
+      setActionId(null);
+    }
+  };
+
+  const handleDeletePermanent = async () => {
+    if (!deleteConfirm) return;
+    setDeleteError('');
+    setActionId(deleteConfirm.id);
+    try {
+      await userManagementApi.deletePermanent(deleteConfirm.id);
+      setDeleteConfirm(null);
+      await load();
+    } catch (err: unknown) {
+      const res = (err as { response?: { data?: { detail?: string } } })?.response?.data;
+      setDeleteError(typeof res?.detail === 'string' ? res.detail : 'Failed to delete user.');
     } finally {
       setActionId(null);
     }
@@ -270,22 +288,33 @@ export function UserManagementPage() {
                     </span>
                   </td>
                   <td className="px-5 py-3.5 text-right">
-                    <button
-                      onClick={() => toggleActive(u)}
-                      disabled={actionId === u.id}
-                      title={u.is_active ? 'Deactivate' : 'Activate'}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all disabled:opacity-50
-                        ${u.is_active
-                          ? 'text-red-500 border-red-200 hover:bg-red-50'
-                          : 'text-green-600 border-green-200 hover:bg-green-50'
-                        }`}
-                    >
-                      {actionId === u.id
-                        ? <Loader2 size={13} className="animate-spin" />
-                        : u.is_active ? <ToggleLeft size={13} /> : <ToggleRight size={13} />
-                      }
-                      {u.is_active ? 'Deactivate' : 'Activate'}
-                    </button>
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => toggleActive(u)}
+                        disabled={actionId === u.id}
+                        title={u.is_active ? 'Deactivate' : 'Activate'}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all disabled:opacity-50
+                          ${u.is_active
+                            ? 'text-amber-600 border-amber-200 hover:bg-amber-50'
+                            : 'text-green-600 border-green-200 hover:bg-green-50'
+                          }`}
+                      >
+                        {actionId === u.id
+                          ? <Loader2 size={13} className="animate-spin" />
+                          : u.is_active ? <ToggleLeft size={13} /> : <ToggleRight size={13} />
+                        }
+                        {u.is_active ? 'Deactivate' : 'Activate'}
+                      </button>
+                      <button
+                        onClick={() => setDeleteConfirm(u)}
+                        disabled={actionId === u.id}
+                        title="Delete user permanently"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-red-200 text-red-600 hover:bg-red-50 transition-all disabled:opacity-50"
+                      >
+                        <Trash2 size={13} />
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -299,6 +328,46 @@ export function UserManagementPage() {
           onClose={() => setShowModal(false)}
           onCreated={() => { setShowModal(false); load(); }}
         />
+      )}
+
+      {/* Delete confirmation */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100">
+              <h2 className="text-lg font-semibold text-gray-800">Delete user permanently?</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                <span className="font-medium text-gray-700">{deleteConfirm.full_name ?? deleteConfirm.username}</span>
+                {deleteConfirm.full_name && <span className="text-gray-400"> (@{deleteConfirm.username})</span>}
+                {' '}will be removed and cannot be restored.
+              </p>
+            </div>
+            {deleteError && (
+              <div className="mx-6 mt-4 flex items-center gap-2 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+                <AlertCircle size={15} className="shrink-0" />
+                {deleteError}
+              </div>
+            )}
+            <div className="flex gap-3 p-6">
+              <button
+                type="button"
+                onClick={() => { setDeleteConfirm(null); setDeleteError(''); }}
+                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeletePermanent}
+                disabled={actionId === deleteConfirm.id}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-red-600 hover:bg-red-700 flex items-center justify-center gap-2 disabled:opacity-70 transition-colors"
+              >
+                {actionId === deleteConfirm.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                {actionId === deleteConfirm.id ? 'Deleting…' : 'Delete permanently'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
