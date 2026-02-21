@@ -1,0 +1,114 @@
+# Build only services with changes and push Docker images to GitHub Container Registry (ghcr.io).
+# Triggers on push to main/master and on pull_request (build only; push on merge via main).
+
+name: Build and push service images
+
+on:
+  push:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      login: ${{ steps.filter.outputs.login }}
+      management: ${{ steps.filter.outputs.management }}
+      scheduling: ${{ steps.filter.outputs.scheduling }}
+      reports: ${{ steps.filter.outputs.reports }}
+      pdf: ${{ steps.filter.outputs.pdf }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            login:
+              - 'aioc-hospital-login-service/**'
+            management:
+              - 'aioc-hospital-management-service/**'
+            scheduling:
+              - 'aioc-hospital-scheduling-service/**'
+            reports:
+              - 'aioc-hospital-reports-service/**'
+            pdf:
+              - 'aioc-hospital-pdf-service/**'
+            frontend:
+              - 'aioc-hospital-frontend/**'
+
+  build:
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: login-service
+            context: aioc-hospital-login-service
+            changed: ${{ needs.detect-changes.outputs.login }}
+          - service: management-service
+            context: aioc-hospital-management-service
+            changed: ${{ needs.detect-changes.outputs.management }}
+          - service: scheduling-service
+            context: aioc-hospital-scheduling-service
+            changed: ${{ needs.detect-changes.outputs.scheduling }}
+          - service: reports-service
+            context: aioc-hospital-reports-service
+            changed: ${{ needs.detect-changes.outputs.reports }}
+          - service: pdf-service
+            context: aioc-hospital-pdf-service
+            changed: ${{ needs.detect-changes.outputs.pdf }}
+          - service: frontend
+            context: aioc-hospital-frontend
+            changed: ${{ needs.detect-changes.outputs.frontend }}
+    steps:
+      - name: Skip if no changes
+        if: matrix.changed != 'true'
+        run: echo "No changes in ${{ matrix.context }}, skipping."
+      - name: Checkout
+        if: matrix.changed == 'true'
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        if: matrix.changed == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: matrix.changed == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels)
+        if: matrix.changed == 'true'
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.service }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=
+            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+
+      - name: Build and push
+        if: matrix.changed == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: ./${{ matrix.context }}
+          file: ./${{ matrix.context }}/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
