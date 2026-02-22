@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import User, UserRole
-from app.schemas import UserCreate, UserUpdate, UserResponse, UserListResponse
+from app.schemas import UserCreate, UserUpdate, UserPasswordUpdate, UserResponse, UserListResponse
 from app.auth import require_role, get_current_user, hash_password
 
 router = APIRouter(prefix="/api/users", tags=["users"])
@@ -73,6 +73,7 @@ def update_user(
     db: Session = Depends(get_db),
     current_user: User = Depends(_admin_only),
 ):
+    """Update user profile (full_name, role, is_active). Use PUT /api/users/{user_id}/password to change password. Set is_active=true to reactivate (restart) a user."""
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -86,6 +87,21 @@ def update_user(
     db.commit()
     db.refresh(user)
     return user
+
+
+@router.put("/{user_id}/password", status_code=status.HTTP_204_NO_CONTENT)
+def set_user_password(
+    user_id: int,
+    body: UserPasswordUpdate,
+    db: Session = Depends(get_db),
+    _: User = Depends(_admin_only),
+):
+    """Admin only: set a new password for any user (change/reset/restart password)."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    user.hashed_password = hash_password(body.new_password)
+    db.commit()
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)

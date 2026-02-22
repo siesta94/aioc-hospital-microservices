@@ -47,6 +47,18 @@ class UserUpdate(BaseModel):
     role: UserRole | None = None
 
 
+class UserPasswordUpdate(BaseModel):
+    """Admin sets a new password for any user (e.g. reset/restart)."""
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def password_min_length(cls, v: str) -> str:
+        if len(v) < 6:
+            raise ValueError("Password must be at least 6 characters")
+        return v
+
+
 class UserResponse(BaseModel):
     id: int
     username: str

@@ -18,6 +18,10 @@ export function ExamsPage() {
       .then((d) => {
         if (cancelled) return;
         setDoctor(d);
+        if (!d) {
+          setError('No doctor profile linked to your account. Contact an administrator.');
+          return;
+        }
         const now = new Date();
         const from = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
         const to = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000).toISOString();
@@ -31,13 +35,7 @@ export function ExamsPage() {
         setAppointments(scheduled);
       })
       .catch((err) => {
-        if (!cancelled) {
-          if (err?.response?.status === 404) {
-            setError('No doctor profile linked to your account. Contact an administrator.');
-          } else {
-            setError('Failed to load your exams.');
-          }
-        }
+        if (!cancelled) setError(err?.response?.status === 401 ? 'Please log in again.' : 'Failed to load your exams.');
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

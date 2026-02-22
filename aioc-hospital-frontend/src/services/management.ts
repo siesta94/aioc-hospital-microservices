@@ -162,6 +162,13 @@ export const userManagementApi = {
     return data;
   },
 
+  /** Admin: set a new password for any user (change / reset / restart password). */
+  async setPassword(id: number, newPassword: string): Promise<void> {
+    await axios.put(`${LOGIN_API_BASE}/api/users/${id}/password`, { new_password: newPassword }, {
+      headers: adminHeaders(),
+    });
+  },
+
   async deactivate(id: number): Promise<void> {
     await axios.delete(`${LOGIN_API_BASE}/api/users/${id}`, {
       headers: adminHeaders(),

@@ -30,6 +30,9 @@ uvicorn app.main:app --reload --port 8000
 | POST   | /api/auth/admin/login   | Admin login           |
 | GET    | /api/dashboard/me       | Current user info     |
 | GET    | /api/admin/dashboard/me | Current admin info    |
+| GET    | /api/users              | List users (admin)    |
+| PUT    | /api/users/{id}         | Update user / reactivate (admin) |
+| PUT    | /api/users/{id}/password | Set user password (admin) |
 | GET    | /health                 | Health check          |
 
 ## Default Users
@@ -55,7 +58,7 @@ DELETE FROM users WHERE username IN ('user', 'admin');
 | Variable                  | Default       | Description                              |
 |---------------------------|---------------|------------------------------------------|
 | DATABASE_URL              | (postgres)    | PostgreSQL connection string             |
-| SECRET_KEY                | (change me)   | JWT signing key                          |
+| SECRET_KEY                | (change me)   | JWT signing key; **must be identical** in login, management, scheduling, and reports services so tokens work (otherwise /me and other APIs return 401) |
 | ALGORITHM                 | HS256         | JWT algorithm                            |
 | ACCESS_TOKEN_EXPIRE_MINUTES | 480         | Token lifetime in minutes (8 hours)      |
 | ALLOWED_ORIGINS           | localhost:5173| Comma-separated CORS origins             |

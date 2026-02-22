@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
   Search, Plus, X, ChevronDown, ShieldCheck,
-  UserRound, Loader2, AlertCircle, ToggleLeft, ToggleRight, Trash2,
+  UserRound, Loader2, AlertCircle, ToggleLeft, ToggleRight, Trash2, KeyRound,
 } from 'lucide-react';
 import { userManagementApi, type ManagedUser, type UserCreate, type UserRole } from '../services/management';
 
@@ -153,6 +153,10 @@ export function UserManagementPage() {
   const [actionId, setActionId]     = useState<number | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<ManagedUser | null>(null);
   const [deleteError, setDeleteError] = useState('');
+  const [passwordUser, setPasswordUser] = useState<ManagedUser | null>(null);
+  const [passwordValue, setPasswordValue] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -194,6 +198,27 @@ export function UserManagementPage() {
       setDeleteError(typeof res?.detail === 'string' ? res.detail : 'Failed to delete user.');
     } finally {
       setActionId(null);
+    }
+  };
+
+  const handleSetPassword = async () => {
+    if (!passwordUser) return;
+    const pwd = passwordValue.trim();
+    if (pwd.length < 6) {
+      setPasswordError('Password must be at least 6 characters.');
+      return;
+    }
+    setPasswordError('');
+    setPasswordLoading(true);
+    try {
+      await userManagementApi.setPassword(passwordUser.id, pwd);
+      setPasswordUser(null);
+      setPasswordValue('');
+    } catch (err: unknown) {
+      const res = (err as { response?: { data?: { detail?: string } } })?.response?.data;
+      setPasswordError(typeof res?.detail === 'string' ? res.detail : 'Failed to update password.');
+    } finally {
+      setPasswordLoading(false);
     }
   };
 
@@ -288,11 +313,11 @@ export function UserManagementPage() {
                     </span>
                   </td>
                   <td className="px-5 py-3.5 text-right">
-                    <div className="flex items-center justify-end gap-2">
+                    <div className="flex items-center justify-end gap-2 flex-wrap">
                       <button
                         onClick={() => toggleActive(u)}
                         disabled={actionId === u.id}
-                        title={u.is_active ? 'Deactivate' : 'Activate'}
+                        title={u.is_active ? 'Deactivate' : 'Activate (restart)'}
                         className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all disabled:opacity-50
                           ${u.is_active
                             ? 'text-amber-600 border-amber-200 hover:bg-amber-50'
@@ -304,6 +329,15 @@ export function UserManagementPage() {
                           : u.is_active ? <ToggleLeft size={13} /> : <ToggleRight size={13} />
                         }
                         {u.is_active ? 'Deactivate' : 'Activate'}
+                      </button>
+                      <button
+                        onClick={() => { setPasswordUser(u); setPasswordValue(''); setPasswordError(''); }}
+                        disabled={actionId === u.id}
+                        title="Change password"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 transition-all disabled:opacity-50"
+                      >
+                        <KeyRound size={13} />
+                        Password
                       </button>
                       <button
                         onClick={() => setDeleteConfirm(u)}
@@ -328,6 +362,59 @@ export function UserManagementPage() {
           onClose={() => setShowModal(false)}
           onCreated={() => { setShowModal(false); load(); }}
         />
+      )}
+
+      {/* Change password modal */}
+      {passwordUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100">
+              <h2 className="text-lg font-semibold text-gray-800">Change password</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Set a new password for <span className="font-medium text-gray-700">{passwordUser.full_name ?? passwordUser.username}</span>
+                {passwordUser.full_name && <span className="text-gray-400"> (@{passwordUser.username})</span>}.
+              </p>
+            </div>
+            <div className="p-6 space-y-4">
+              {passwordError && (
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+                  <AlertCircle size={15} className="shrink-0" />
+                  {passwordError}
+                </div>
+              )}
+              <Field label="New password" required>
+                <input
+                  type="password"
+                  className={inp}
+                  value={passwordValue}
+                  onChange={e => setPasswordValue(e.target.value)}
+                  minLength={6}
+                  placeholder="Min 6 characters"
+                  autoComplete="new-password"
+                />
+              </Field>
+            </div>
+            <div className="flex gap-3 px-6 pb-6">
+              <button
+                type="button"
+                onClick={() => { setPasswordUser(null); setPasswordValue(''); setPasswordError(''); }}
+                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSetPassword}
+                disabled={passwordLoading || passwordValue.trim().length < 6}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-70"
+                style={{ background: 'linear-gradient(135deg, #0f2d4f, #0d7377)' }}
+              >
+                {passwordLoading && <Loader2 size={15} className="animate-spin" />}
+                {passwordLoading ? 'Updating…' : 'Update password'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Delete confirmation */}

@@ -26,15 +26,13 @@ def list_doctors(
     return DoctorListResponse(items=items, total=total)
 
 
-@router.get("/me", response_model=DoctorResponse)
+@router.get("/me", response_model=DoctorResponse | None)
 def get_my_doctor_profile(
     db: Session = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    """Return the doctor profile for the current user (staff dashboard: my exams)."""
+    """Return the doctor profile for the current user (staff dashboard: my exams). Returns null (200) if this user has no doctor profile (e.g. admin or non-doctor)."""
     doctor = db.query(Doctor).filter(Doctor.user_id == current_user.id, Doctor.is_active == True).first()
-    if not doctor:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No doctor profile found for this user")
     return doctor
 
 

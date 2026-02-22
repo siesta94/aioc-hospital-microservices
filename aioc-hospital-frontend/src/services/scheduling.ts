@@ -83,10 +83,10 @@ export const doctorApi = {
     return data;
   },
 
-  /** Current user's doctor profile (for staff). 404 if user is not a doctor. */
-  async getMe(): Promise<Doctor> {
-    const { data } = await axios.get(`${BASE}/api/doctors/me`, { headers: userHeaders() });
-    return data;
+  /** Current user's doctor profile (for staff). Returns null if user has no doctor profile (e.g. admin). */
+  async getMe(): Promise<Doctor | null> {
+    const { data } = await axios.get<Doctor | null>(`${BASE}/api/doctors/me`, { headers: authHeaders() });
+    return data ?? null;
   },
 
   async update(id: number, body: { display_name?: string; specialty?: string; sub_specialty?: string; is_active?: boolean }): Promise<Doctor> {
