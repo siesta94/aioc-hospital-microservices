@@ -101,6 +101,17 @@ jobs:
             type=sha,prefix=
             type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
 
+      - name: Set frontend build-args
+        if: matrix.changed == 'true' && matrix.service == 'frontend'
+        id: frontend-args
+        run: |
+          echo "VITE_API_URL=https://login.aioc-services.com" >> $GITHUB_OUTPUT
+          echo "VITE_LOGIN_API_URL=https://login.aioc-services.com" >> $GITHUB_OUTPUT
+          echo "VITE_MANAGEMENT_API_URL=https://management.aioc-services.com" >> $GITHUB_OUTPUT
+          echo "VITE_SCHEDULING_API_URL=https://scheduling.aioc-services.com" >> $GITHUB_OUTPUT
+          echo "VITE_REPORTS_API_URL=https://reports.aioc-services.com" >> $GITHUB_OUTPUT
+          echo "VITE_PDF_API_URL=https://pdf.aioc-services.com" >> $GITHUB_OUTPUT
+
       - name: Build and push
         if: matrix.changed == 'true'
         uses: docker/build-push-action@v6
@@ -112,4 +123,10 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          build-args: ${{ matrix.service == 'frontend' && 'VITE_API_URL=https://login.aioc-services.com\nVITE_LOGIN_API_URL=https://login.aioc-services.com\nVITE_MANAGEMENT_API_URL=https://management.aioc-services.com\nVITE_SCHEDULING_API_URL=https://scheduling.aioc-services.com\nVITE_REPORTS_API_URL=https://reports.aioc-services.com\nVITE_PDF_API_URL=https://pdf.aioc-services.com' }}
+          build-args: |
+            ${{ matrix.service == 'frontend' && format('VITE_API_URL={0}', steps.frontend-args.outputs.VITE_API_URL) }}
+            ${{ matrix.service == 'frontend' && format('VITE_LOGIN_API_URL={0}', steps.frontend-args.outputs.VITE_LOGIN_API_URL) }}
+            ${{ matrix.service == 'frontend' && format('VITE_MANAGEMENT_API_URL={0}', steps.frontend-args.outputs.VITE_MANAGEMENT_API_URL) }}
+            ${{ matrix.service == 'frontend' && format('VITE_SCHEDULING_API_URL={0}', steps.frontend-args.outputs.VITE_SCHEDULING_API_URL) }}
+            ${{ matrix.service == 'frontend' && format('VITE_REPORTS_API_URL={0}', steps.frontend-args.outputs.VITE_REPORTS_API_URL) }}
+            ${{ matrix.service == 'frontend' && format('VITE_PDF_API_URL={0}', steps.frontend-args.outputs.VITE_PDF_API_URL) }}

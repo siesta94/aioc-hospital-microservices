@@ -3,7 +3,6 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# These are baked into the JS bundle at build time — pass host-reachable origins.
 ARG VITE_API_URL=http://localhost:8000
 ARG VITE_LOGIN_API_URL=http://localhost:8000
 ARG VITE_MANAGEMENT_API_URL=http://localhost:8001
