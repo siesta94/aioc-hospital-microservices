@@ -112,3 +112,4 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          build-args: ${{ matrix.service == 'frontend' && 'VITE_API_URL=https://login.aioc-services.com\nVITE_LOGIN_API_URL=https://login.aioc-services.com\nVITE_MANAGEMENT_API_URL=https://management.aioc-services.com\nVITE_SCHEDULING_API_URL=https://scheduling.aioc-services.com\nVITE_REPORTS_API_URL=https://reports.aioc-services.com\nVITE_PDF_API_URL=https://pdf.aioc-services.com' }}
