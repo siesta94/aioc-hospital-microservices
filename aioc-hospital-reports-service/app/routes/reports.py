@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
+from app.middleware import request_id_ctx
 from app.models import Report
 from app.schemas import ReportCreate, ReportUpdate, ReportResponse, ReportListResponse
 from app.auth import get_current_user, CurrentUser
@@ -12,12 +13,22 @@ from app.auth import get_current_user, CurrentUser
 router = APIRouter(prefix="/api/patients", tags=["reports"])
 
 
+def _internal_headers() -> dict[str, str]:
+    headers: dict[str, str] = {}
+    if settings.INTERNAL_API_KEY:
+        headers["X-Internal-Key"] = settings.INTERNAL_API_KEY
+    rid = request_id_ctx.get("")
+    if rid:
+        headers["X-Request-ID"] = rid
+    return headers
+
+
 def _fetch_patient(patient_id: int) -> dict | None:
     """Fetch patient from management service internal API. Returns None on error or 404."""
     url = f"{settings.MANAGEMENT_SERVICE_URL.rstrip('/')}/internal/patients/{patient_id}"
     try:
         with httpx.Client(timeout=10.0) as client:
-            r = client.get(url)
+            r = client.get(url, headers=_internal_headers())
             r.raise_for_status()
             return r.json()
     except httpx.HTTPError:
@@ -146,9 +157,17 @@ def get_report_pdf(
             "updated_at": report.updated_at.isoformat() if report.updated_at else None,
         },
     }
+    pdf_headers: dict[str, str] = {}
+    rid = request_id_ctx.get("")
+    if rid:
+        pdf_headers["X-Request-ID"] = rid
     try:
         with httpx.Client(timeout=30.0) as client:
-            r = client.post(f"{settings.PDF_SERVICE_URL.rstrip('/')}/api/generate/report", json=payload)
+            r = client.post(
+                f"{settings.PDF_SERVICE_URL.rstrip('/')}/api/generate/report",
+                json=payload,
+                headers=pdf_headers,
+            )
             r.raise_for_status()
     except httpx.HTTPError as e:
         raise HTTPException(

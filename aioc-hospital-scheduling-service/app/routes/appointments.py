@@ -1,4 +1,6 @@
+import time
 from datetime import datetime, date, timedelta
+from threading import Lock
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -6,12 +8,32 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.config import settings
 from app.database import get_db
+from app.middleware import request_id_ctx
 from app.models import Appointment, AppointmentStatus
 from app.schemas import (
     AppointmentCreate, AppointmentUpdate, AppointmentResponse, AppointmentListResponse,
     AppointmentWithDetailsResponse, AppointmentCalendarResponse,
 )
 from app.auth import get_current_user, CurrentUser
+
+_patient_cache: dict[int, tuple[dict, float]] = {}
+_cache_lock = Lock()
+_CACHE_TTL = 300.0  # seconds
+
+
+def _get_cached(pid: int) -> dict | None:
+    with _cache_lock:
+        entry = _patient_cache.get(pid)
+        if entry and time.monotonic() - entry[1] < _CACHE_TTL:
+            return entry[0]
+    return None
+
+
+def _put_cached(data: dict[int, dict]) -> None:
+    now = time.monotonic()
+    with _cache_lock:
+        for pid, val in data.items():
+            _patient_cache[pid] = (val, now)
 
 router = APIRouter(prefix="/api/appointments", tags=["appointments"])
 
@@ -45,21 +67,46 @@ def cancel_overdue_scheduled_appointments(db: Session) -> None:
 
 
 def _fetch_patient_data(patient_ids: list[int]) -> dict[int, dict]:
-    """Call management service internal batch; return dict patient_id -> {name, is_active}."""
+    """Resolve patient IDs to name/is_active. Checks a 5-minute in-process cache first;
+    only calls management-service for IDs not yet cached. Falls back gracefully on error."""
     if not patient_ids:
         return {}
+
+    result: dict[int, dict] = {}
+    missing: list[int] = []
+    for pid in set(patient_ids):
+        cached = _get_cached(pid)
+        if cached is not None:
+            result[pid] = cached
+        else:
+            missing.append(pid)
+
+    if not missing:
+        return result
+
     url = f"{settings.MANAGEMENT_SERVICE_URL.rstrip('/')}/internal/patients/batch"
+    headers: dict[str, str] = {}
+    if settings.INTERNAL_API_KEY:
+        headers["X-Internal-Key"] = settings.INTERNAL_API_KEY
+    rid = request_id_ctx.get("")
+    if rid:
+        headers["X-Request-ID"] = rid
+
     try:
         with httpx.Client(timeout=10.0) as client:
-            r = client.post(url, json={"ids": list(set(patient_ids))})
+            r = client.post(url, json={"ids": missing}, headers=headers)
             r.raise_for_status()
             data = r.json()
     except httpx.HTTPError:
-        return {}
-    return {
+        return result  # return whatever we got from cache
+
+    fetched = {
         p["id"]: {"name": f"{p['first_name']} {p['last_name']}", "is_active": p.get("is_active", True)}
         for p in data
     }
+    _put_cached(fetched)
+    result.update(fetched)
+    return result
 
 
 @router.get("", response_model=AppointmentListResponse)

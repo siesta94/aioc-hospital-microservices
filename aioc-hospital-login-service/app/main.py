@@ -9,6 +9,7 @@ from sqlalchemy import text
 
 from app.config import settings
 from app.database import SessionLocal, get_db
+from app.middleware import RequestIDMiddleware
 from app.routes import auth, dashboard, users
 
 logging.basicConfig(level=logging.INFO)
@@ -39,6 +40,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(RequestIDMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allowed_origins_list,

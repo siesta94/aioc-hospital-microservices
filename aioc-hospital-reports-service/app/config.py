@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
     PDF_SERVICE_URL: str = "http://localhost:8004"
     MANAGEMENT_SERVICE_URL: str = "http://localhost:8001"
+    INTERNAL_API_KEY: str = ""
 
     @property
     def allowed_origins_list(self) -> list[str]:
